@@ -80,7 +80,7 @@ To run the project locally, you will need a local web server, as the application
 
 Clone the Repository (or download the files):
 
-git clone [https://github.com/quantum-coders-ai/Waste-Management-system](https://github.com/quantum-coders-ai/Waste-Management-system)
+git clone [[https://github.com/quantum-coders-ai/Waste-Segregation-and-Anlytics]](https://github.com/quantum-coders-ai/Waste-Segregation-and-Anlytics)
 
 
 Firebase Configuration:
@@ -126,5 +126,6 @@ Hardware Connectivity:
 Integrate the web dashboard with a physical prototype using a Raspberry Pi or similar microcontroller. The application could send commands to control servo motors for sorting, read data from real sensors, and create a complete cyber-physical system.
 
 Advanced Analytics & Reporting:
+
 
 Implement a feature to export the currently filtered data as a CSV file, allowing for in-depth offline analysis and record-keeping in tools like Excel or Google Sheets.
