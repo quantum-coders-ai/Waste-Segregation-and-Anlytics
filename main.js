@@ -1,5 +1,6 @@
 import { initFirebase, saveWasteData } from './firebase.js';
-import { initUI, updateAnalytics, updateStatus, updateSortingAnimation, elements, STATUS } from './ui.js';
+// Import 'showConfirmationModal' from ui.js
+import { initUI, updateAnalytics, updateStatus, updateSortingAnimation, elements, STATUS, showConfirmationModal } from './ui.js';
 import { createSimulation } from './simulation.js';
 
 const OFFLINE_STORAGE_KEY = 'wasteSortingData_offline';
@@ -10,7 +11,9 @@ const appState = {
     allData: [],
     simulation: null,
     timeFilter: 'all',
+    hasUnsavedChanges: false, // EFFICIENCY: Flag for offline saving
     triggerAnalyticsUpdate: () => {
+        // BUG FIX: Was Date.Gethours(), corrected to Date.now()
         const now = Date.now();
         const filteredData = (appState.timeFilter === 'all')
             ? appState.allData
@@ -62,6 +65,9 @@ async function main() {
         appState.triggerAnalyticsUpdate(); 
     }
     
+    // EFFICIENCY: Add a listener to save offline data before the user leaves.
+    window.addEventListener('beforeunload', saveOfflineData);
+
     console.log(`App running in ${appState.isOnline ? 'ONLINE' : 'OFFLINE'} mode.`);
     appState.simulation = createSimulation(handleSimulationUpdate);
     elements.btnStart.disabled = false;
@@ -83,6 +89,10 @@ function stopApp() {
     appState.isRunning = false;
     appState.simulation.stop();
     updateStatus(appState.isOnline ? STATUS.ONLINE : STATUS.STOPPED);
+
+    // EFFICIENCY: Save offline data only when the simulation stops.
+    saveOfflineData();
+
     // Re-enable controls
     [elements.btnStart, elements.btnClear, elements.checkFault, elements.sliderSpeed]
         .forEach(el => el.disabled = false);
@@ -92,15 +102,40 @@ function stopApp() {
     document.getElementById('current-item')?.remove();
 }
 
+/**
+ * EFFICIENCY: Saves offline data to localStorage.
+ * Only writes if there are unsaved changes.
+ */
+function saveOfflineData() {
+    if (appState.isOnline || !appState.hasUnsavedChanges) return;
+
+    try {
+        localStorage.setItem(OFFLINE_STORAGE_KEY, JSON.stringify(appState.allData));
+        appState.hasUnsavedChanges = false; // Reset flag
+        console.log("Offline data saved to localStorage.");
+    } catch (error) {
+        console.error("Failed to save offline data to localStorage:", error);
+    }
+}
+
+
 function clearData() {
     if(appState.isOnline || appState.isRunning) return;
-    if(confirm("Are you sure you want to clear all locally saved data? This action cannot be undone.")) {
-        appState.allData = [];
-        localStorage.removeItem(OFFLINE_STORAGE_KEY);
-        appState.simulation.reset();
-        appState.triggerAnalyticsUpdate();
-        console.log("Offline data cleared.");
-    }
+
+
+    showConfirmationModal(
+        "Clear Local Data",
+        "Are you sure you want to clear all locally saved data? This action cannot be undone.",
+        () => {
+            // This code runs only if the user clicks "Confirm"
+            appState.allData = [];
+            appState.hasUnsavedChanges = true; // Mark for saving (clearing)
+            saveOfflineData(); // This will save the empty array
+            appState.simulation.reset();
+            appState.triggerAnalyticsUpdate();
+            console.log("Offline data cleared.");
+        }
+    );
 }
 
 function handleSimulationUpdate(item, sortedTo, processedItem) {
@@ -110,15 +145,14 @@ function handleSimulationUpdate(item, sortedTo, processedItem) {
             saveWasteData(processedItem);
         } else {
             appState.allData.push(processedItem);
-            try {
-                localStorage.setItem(OFFLINE_STORAGE_KEY, JSON.stringify(appState.allData));
-            } catch (error) {
-                console.error("Failed to save offline data to localStorage:", error);
-            }
+            
+
+            appState.hasUnsavedChanges = true;
+            
+            // We still trigger analytics update to keep the UI live
             appState.triggerAnalyticsUpdate();
         }
     }
 }
 
 document.addEventListener('DOMContentLoaded', main);
-
