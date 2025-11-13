@@ -8,7 +8,7 @@ import {
     STATUS, 
     showConfirmationModal,
     showInsightReport,
-    WASTE_DECK_CONFIG
+    WASTE_DECK_CONFIG // Import config for report logic
 } from './ui.js';
 import { createSimulation } from './simulation.js';
 
@@ -18,22 +18,29 @@ const appState = {
     isOnline: false,
     isRunning: false,
     allData: [],
-    filteredData: [],
+    filteredData: [], // Store the currently filtered data
     simulation: null,
     timeFilter: 'all',
+    // Main data processing and UI update trigger
     triggerAnalyticsUpdate: () => {
         const now = Date.now();
+        // Update the filteredData array based on the timeFilter
         appState.filteredData = (appState.timeFilter === 'all')
             ? appState.allData
             : appState.allData.filter(item => (now - item.timestamp) < parseInt(appState.timeFilter, 10));
         
+        // Pass the *filtered* data to the UI
         updateAnalytics(appState.filteredData);
     }
 };
 
+/**
+ * Main application entry point
+ */
 async function main() {
     console.log("Application initializing...");
     
+    // Attempt to load offline data first
     try {
         const savedData = localStorage.getItem(OFFLINE_STORAGE_KEY);
         if (savedData) {
@@ -45,6 +52,7 @@ async function main() {
         localStorage.removeItem(OFFLINE_STORAGE_KEY);
     }
 
+    // Initialize all UI elements and attach event listeners
     initUI({
         onStart: startApp,
         onStop: stopApp,
@@ -62,7 +70,7 @@ async function main() {
         },
         onFilterChange: (filterValue) => {
             appState.timeFilter = filterValue;
-            appState.triggerAnalyticsUpdate();
+            appState.triggerAnalyticsUpdate(); // Re-filter and update UI
         },
         onGenerateReport: () => {
             const insights = generateReport(appState.filteredData);
@@ -70,61 +78,82 @@ async function main() {
         }
     });
 
+    // Attempt to connect to Firebase
     appState.isOnline = await initFirebase(appState);
     updateStatus(appState.isOnline ? STATUS.ONLINE : STATUS.OFFLINE);
     
+    // Hide 'Clear Data' button if online, as it's for local data
     if (appState.isOnline) {
         elements.btnClear.classList.add('hidden');
     }
     
+    // If offline, trigger an initial update with any loaded local data
     if (!appState.isOnline) {
         appState.triggerAnalyticsUpdate(); 
     }
     
     console.log(`App running in ${appState.isOnline ? 'ONLINE' : 'OFFLINE'} mode.`);
     
+    // Create the simulation instance
     appState.simulation = createSimulation(handleSimulationUpdate);
     
+    // Enable the start button now that everything is ready
     elements.btnStart.disabled = false;
     elements.btnGenerateReport.disabled = false;
 }
 
+/**
+ * Starts the simulation
+ */
 function startApp() {
     if (appState.isRunning) return;
     appState.isRunning = true;
     appState.simulation.start();
     updateStatus(STATUS.RUNNING);
     
+    // Disable all controls during simulation
     [elements.btnStart, elements.btnClear, elements.checkFault, elements.sliderSpeed, elements.sliderFaultRate, elements.btnGenerateReport]
         .forEach(el => el.disabled = true);
     
+    // Hide clear button if it wasn't already (e.g., if started offline)
     elements.btnClear.classList.add('hidden');
     elements.btnStop.disabled = false;
 }
 
+/**
+ * Stops the simulation
+ */
 function stopApp() {
     if (!appState.isRunning) return;
     appState.isRunning = false;
     appState.simulation.stop();
     updateStatus(appState.isOnline ? STATUS.ONLINE : STATUS.STOPPED);
     
+    // Re-enable controls
     [elements.btnStart, elements.checkFault, elements.sliderSpeed, elements.btnGenerateReport]
         .forEach(el => el.disabled = false);
     
     elements.sliderFaultRate.disabled = !elements.checkFault.checked;
     elements.btnStop.disabled = true;
     
+    // Only show the clear button if we are offline
     if (!appState.isOnline) {
         elements.btnClear.classList.remove('hidden');
         elements.btnClear.disabled = false;
     }
 
+    // Save all data to local storage (only relevant if offline)
     saveOfflineData();
     
+    // Remove any lingering item animation
     document.getElementById('current-item')?.remove();
 }
 
+/**
+ * Shows a confirmation modal and clears local data if confirmed.
+ */
 function clearData() {
+    // This function should only be callable when offline and stopped
     if(appState.isOnline || appState.isRunning) return;
     
     showConfirmationModal(
@@ -135,36 +164,56 @@ function clearData() {
             appState.filteredData = [];
             localStorage.removeItem(OFFLINE_STORAGE_KEY);
             appState.simulation.reset();
-            appState.triggerAnalyticsUpdate();
+            appState.triggerAnalyticsUpdate(); // Update UI to show '0'
             console.log("Offline data cleared.");
         }
     );
 }
 
+/**
+ * Callback function for the simulation.
+ * Handles animation and data saving for each item.
+ */
 function handleSimulationUpdate(item, sortedTo, processedItem) {
+    // This part just triggers the animation
     updateSortingAnimation(item, sortedTo);
     
+    // This part handles the data logging
     if (processedItem) {
         if (appState.isOnline) {
+            // In ONLINE mode, save to Firestore.
+            // The onSnapshot listener in firebase.js will handle the UI update.
             saveWasteData(processedItem);
         } else {
+            // In OFFLINE mode, save to the local array.
             appState.allData.push(processedItem);
+            // Manually trigger a UI update.
             appState.triggerAnalyticsUpdate();
         }
     }
 }
 
+/**
+ * Saves the current appState.allData to localStorage.
+ * This is "debounced" and only called when stopping or leaving.
+ */
 function saveOfflineData() {
-    if (appState.isOnline) return;
+    if (appState.isOnline) return; // Don't save to local if we're online
     try {
         localStorage.setItem(OFFLINE_STORAGE_KEY, JSON.stringify(appState.allData));
     } catch (error) {
         console.error("Failed to save offline data to localStorage:", error);
+        // Do not use alert() as it's blocked in sandboxed environments
+        // A custom modal for this error could be implemented in ui.js
     }
 }
 
+// Add a listener to save offline data if the user closes the tab
 window.addEventListener('beforeunload', saveOfflineData);
 
+/**
+ * Analyzes the current dataset and generates an insights report.
+ */
 function generateReport(data) {
     const total = data.length;
     if (total === 0) {
@@ -177,43 +226,54 @@ function generateReport(data) {
     const lowConfidenceItems = [];
     const criticalContamination = [];
 
+    // Lookup table for hazard analysis
     const hazardConfig = {
         'Organic': { threshold: 0.20, insight: "<strong>High Organic Waste:</strong> High levels of organic material detected. This is a time-sensitive contamination risk. Prioritize processing and separation to prevent degradation and spoilage of recyclable batches." },
         'Glass': { threshold: 0.25, insight: "<strong>High Glass Volume:</strong> Significant glass volume detected. This poses a safety hazard to personnel and can cause premature wear or damage to sorting machinery. Ensure all safety protocols are active." },
         'E-Waste': { threshold: 0.15, insight: "<strong>High E-Waste Volume:</strong> High levels of E-Waste (batteries, electronics) detected. This is a critical fire and hazardous material risk. Divert this stream to specialized handling immediately." }
     };
 
+    // Get a map of { type: isRecyclable } for contamination checks
     const recyclableMap = WASTE_DECK_CONFIG.reduce((acc, item) => {
         acc[item.type] = item.recyclable;
         return acc;
     }, {});
 
 
+    // --- SINGLE PASS ANALYSIS ---
     data.forEach(item => {
+        // 1. Overall Accuracy
         if (item.prediction === item.actual) {
             correct++;
-            if (item.confidence < 0.75) {
+            // 2. Low Confidence on Correct Sorts
+            if (item.confidence < 0.75) { // 75% threshold
                 lowConfidenceItems.push(item);
             }
         } else {
+            // 3. Critical Contamination
             const actualIsRecyclable = recyclableMap[item.actual];
             const predictedIsRecyclable = recyclableMap[item.prediction];
 
+            // Check if a NON-RECYCLABLE item was put in a RECYCLABLE bin
             if (!actualIsRecyclable && predictedIsRecyclable) {
                 criticalContamination.push(item);
             }
         }
         
+        // 4. Category Totals (for Hazard Analysis)
         categoryCounts[item.actual] = (categoryCounts[item.actual] || 0) + 1;
     });
 
+    // --- GENERATE INSIGHTS ---
 
+    // 1. Overall Performance Insight
     const accuracy = (correct / total) * 100;
     insights.push({
         title: 'Overall Performance',
         text: `Processed ${total} items with an accuracy of <strong>${accuracy.toFixed(1)}%</strong>. (${correct} correct, ${total - correct} incorrect).`
     });
 
+    // 2. High-Volume & Hazard Analysis
     const hazardWarnings = [];
     for (const type in categoryCounts) {
         const percent = categoryCounts[type] / total;
@@ -228,6 +288,7 @@ function generateReport(data) {
         });
     }
 
+    // 3. Critical Contamination Insight
     if (criticalContamination.length > 0) {
         const examples = criticalContamination
             .slice(0, 3)
@@ -239,6 +300,7 @@ function generateReport(data) {
         });
     }
 
+    // 4. Low Confidence Insight
     if (lowConfidenceItems.length > 0) {
         const lowConfidenceTypes = lowConfidenceItems.reduce((acc, item) => {
             acc[item.actual] = (acc[item.actual] || 0) + 1;
@@ -252,11 +314,12 @@ function generateReport(data) {
         });
     }
 
+    // 5. Throughput Insight
     const firstItemTime = data[0]?.timestamp;
     const lastItemTime = data[data.length - 1]?.timestamp;
     if (lastItemTime && firstItemTime) {
         const durationMin = (lastItemTime - firstItemTime) / 60000;
-        if (durationMin > 0.1) {
+        if (durationMin > 0.1) { // Only calculate if over ~6 seconds
             const throughput = total / durationMin;
             insights.push({
                 title: 'Average Throughput',
@@ -268,4 +331,6 @@ function generateReport(data) {
     return { insights };
 }
 
+
+// Start the application once the DOM is loaded
 document.addEventListener('DOMContentLoaded', main);
