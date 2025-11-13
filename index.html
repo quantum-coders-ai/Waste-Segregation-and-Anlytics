@@ -1,19 +1,27 @@
 <!DOCTYPE html>
+<!-- Add class="dark" to html tag to enable dark mode -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Waste Sorting System Analytics</title>
+    <!-- 1. Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 2. Chart.js CDN -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+    <!-- 3. Firebase SDKs CDN -->
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    <!-- Link to your local CSS file -->
     <link rel="stylesheet" href="style.css">
     
+    <!-- Dark Mode Initializer -->
     <script>
+        // Set Tailwind to class-based dark mode
         tailwind.config = { darkMode: 'class' };
+        // On page load or when changing themes, best to add inline in `head` to avoid FOUC
         if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
           document.documentElement.classList.add('dark')
         } else {
@@ -21,30 +29,32 @@
         }
     </script>
 </head>
+<!-- Apply dark mode background and text colors -->
 <body class="bg-gray-100 dark:bg-gray-900 font-sans text-gray-800 dark:text-gray-300 transition-colors duration-300">
 
     <div class="container mx-auto p-4 md:p-6 lg:p-8">
-        
+        <!-- Header -->
         <header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
             <div>
                 <h1 class="text-3xl font-bold text-gray-800 dark:text-gray-100">Waste Sorting Analytics</h1>
                 <p class="text-gray-500 dark:text-gray-400">A real-time dashboard simulating an automated sorting facility.</p>
+                <!-- *** REVERTED: Removed the user-id-display div *** -->
             </div>
             
             <div class="flex items-center space-x-4 mt-2 md:mt-0">
-                
+                <!-- Status Indicator -->
                 <div id="status-indicator" class="flex items-center space-x-2">
                     <span id="status-text" class="text-gray-500 dark:text-gray-400 font-medium">Initializing...</span>
                     <div id="status-dot" class="w-4 h-4 bg-yellow-400 rounded-full animate-pulse"></div>
                 </div>
-                
+                <!-- Dark Mode Toggle Button -->
                 <button id="btn-theme-toggle" class="w-10 h-10 p-2 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
-                    
+                    <!-- Moon Icon -->
                     <svg id="icon-moon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 hidden">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 008.25-4.5z" />
                     </svg>
-                    
-                    
+                    <!-- Sun Icon -->
+                    <!-- *** REPLACED ICON with the BOLDER, SOLID version *** -->
                     <svg id="icon-sun" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6 hidden">
                         <path fill-rule="evenodd" d="M12 2.25c.414 0 .75.336.75.75v2.25a.75.75 0 01-1.5 0V3a.75.75 0 01.75-.75zM7.5 12a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM18.894 6.166a.75.75 0 00-1.06-1.06l-1.591 1.59a.75.75 0 101.06 1.061l1.591-1.59zM21.75 12a.75.75 0 01-.75.75h-2.25a.75.75 0 010-1.5h2.25a.75.75 0 01.75.75zM17.834 18.894a.75.75 0 001.06-1.06l-1.59-1.591a.75.75 0 10-1.061 1.06l1.59 1.591zM12 18.75a.75.75 0 01.75.75v2.25a.75.75 0 01-1.5 0v-2.25a.75.75 0 01.75-.75zM5.106 17.834a.75.75 0 001.06 1.06l1.59-1.591a.75.75 0 00-1.06-1.06l-1.59 1.591zM3 12a.75.75 0 01.75-.75h2.25a.75.75 0 010 1.5H3.75A.75.75 0 013 12zM6.166 5.106a.75.75 0 00-1.06 1.06l1.59 1.591a.75.75 0 101.06-1.06l-1.59-1.591z" clip-rule="evenodd" />
                     </svg>
@@ -52,18 +62,18 @@
             </div>
         </header>
 
-        
+        <!-- Controls -->
         <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md mb-6 flex flex-wrap items-center gap-4">
             <button id="btn-start" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-sm transition-transform transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none" disabled>Start Simulation</button>
             <button id="btn-stop" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg shadow-sm transition-transform transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none" disabled>Stop Simulation</button>
             <button id="btn-clear" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg shadow-sm transition-transform transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none ml-auto">Clear Data</button>
         </div>
 
-        
+        <!-- Advanced Controls -->
         <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md mb-6 grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
              <div>
                 <label for="slider-speed" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Simulation Speed</label>
-                
+                <!-- *** FIX: Added 'w-full' class *** -->
                 <input type="range" id="slider-speed" min="0.5" max="3" value="1" step="0.5" class="mt-2 w-full">
                 <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1 px-1">
                     <span>0.5x</span><span>1.0x</span><span>1.5x</span><span>2.0x</span><span>2.5x</span><span>3.0x</span>
@@ -74,7 +84,7 @@
                     <span class="text-gray-700 dark:text-gray-300 font-medium">Simulate ML Faults</span>
                     <div class="relative">
                         <input type="checkbox" id="check-fault" class="sr-only peer">
-                        
+                        <!-- *** FIX: Added 'rounded-full' class *** -->
                         <div class="w-11 h-6 bg-gray-200 rounded-full peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:bg-gray-700 dark:border-gray-600 peer-checked:bg-yellow-500"></div>
                     </div>
                 </label>
@@ -85,7 +95,7 @@
             </div>
         </div>
         
-        
+        <!-- Analytics Time Filter -->
         <div class="bg-white dark:bg-gray-800 p-3 rounded-lg shadow-md mb-6">
             <div id="time-filter-controls" class="flex flex-wrap items-center justify-center gap-2">
                  <span class="font-semibold text-gray-700 dark:text-gray-300 mr-2">Show Data For:</span>
@@ -94,6 +104,7 @@
                  <button data-filter="1800000" class="filter-btn font-medium py-1 px-3 rounded-md bg-gray-200 dark:bg-gray-700 dark:hover:bg-blue-500 dark:hover:text-white hover:bg-blue-500 hover:text-white transition-colors text-sm">Last 30 Min</button>
                  <button data-filter="3600000" class="filter-btn font-medium py-1 px-3 rounded-md bg-gray-200 dark:bg-gray-700 dark:hover:bg-blue-500 dark:hover:text-white hover:bg-blue-500 hover:text-white transition-colors text-sm">Last 1 Hr</button>
                  <button data-filter="86400000" class="filter-btn font-medium py-1 px-3 rounded-md bg-gray-200 dark:bg-gray-700 dark:hover:bg-blue-500 dark:hover:text-white hover:bg-blue-500 hover:text-white transition-colors text-sm">Last 24 Hr</button>
+                 <!-- *** REVERTED: Removed Export button, kept Insights button *** -->
                  <div class="ml-auto flex gap-2">
                     <button id="btn-generate-report" class="bg-green-600 hover:bg-green-700 text-white font-bold py-1 px-3 rounded-md shadow-sm transition-transform transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none text-sm">Generate Insights Report</button>
                  </div>
@@ -101,28 +112,28 @@
         </div>
 
 
-        
+        <!-- KPIs -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
             <div class="bg-white dark:bg-gray-800 p-5 rounded-lg shadow-md text-center transition-all duration-300 hover:shadow-xl"><h3 class="text-gray-500 dark:text-gray-400 uppercase text-sm font-semibold">Total Items Processed</h3><p id="kpi-total" class="text-4xl font-bold text-gray-800 dark:text-gray-100 mt-2">0</p></div>
             <div class="bg-white dark:bg-gray-800 p-5 rounded-lg shadow-md text-center transition-all duration-300 hover:shadow-xl"><h3 class="text-gray-500 dark:text-gray-400 uppercase text-sm font-semibold">Sorting Accuracy</h3><p id="kpi-accuracy" class="text-4xl font-bold text-green-600 mt-2">--%</p></div>
             <div class="bg-white dark:bg-gray-800 p-5 rounded-lg shadow-md text-center transition-all duration-300 hover:shadow-xl"><h3 class="text-gray-500 dark:text-gray-400 uppercase text-sm font-semibold">Throughput</h3><p id="kpi-throughput" class="text-4xl font-bold text-blue-600 dark:text-blue-400 mt-2">0 <span class="text-xl font-medium">items/min</span></p></div>
         </div>
 
-        
+        <!-- Charts -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md md:col-span-2 relative h-80"><h3 class="font-bold text-lg text-center mb-2 dark:text-gray-100">Processing Trend (items per 5s)</h3><canvas id="chart-trend"></canvas><div id="trend-placeholder" class="chart-placeholder hidden"></div></div>
             <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md relative h-80"><h3 class="font-bold text-lg text-center mb-2 dark:text-gray-100">Waste Categories</h3><canvas id="chart-categories"></canvas><div id="categories-placeholder" class="chart-placeholder hidden"></div></div>
             <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md relative h-80"><h3 class="font-bold text-lg text-center mb-2 dark:text-gray-100">Recycled vs. Dumped</h3><canvas id="chart-recycle"></canvas><div id="recycle-placeholder" class="chart-placeholder hidden"></div></div>
         </div>
 
-        
+        <!-- Simulation & Log -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md"><h3 class="font-bold text-lg mb-2 dark:text-gray-100">Simulation: Sorting Station</h3><div id="sorting-station" class="relative bg-gray-200 dark:bg-gray-700 h-96 rounded-lg p-4 grid grid-cols-3 grid-rows-3 gap-4"><div id="scanner" class="col-start-2 row-start-2 flex items-center justify-center bg-gray-700 dark:bg-gray-900 rounded-lg shadow-inner"></div></div></div>
             <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md"><h3 class="font-bold text-lg mb-2 dark:text-gray-100">Live Event Log</h3><div id="event-log" class="h-96 overflow-y-auto bg-gray-50 dark:bg-gray-700 p-2 rounded border border-gray-200 dark:border-gray-600"></div></div>
         </div>
     </div>
 
-    
+    <!-- Modal -->
     <div id="item-modal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center hidden z-50 p-4">
         <div class="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full shadow-2xl transform transition-all scale-95 opacity-0" id="modal-dialog">
             <div class="flex justify-between items-center border-b pb-3 mb-4 dark:border-gray-600">
@@ -130,12 +141,12 @@
                 <button id="btn-close-modal" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-3xl">&times;</button>
             </div>
             <div id="modal-content" class="space-y-3"></div>
-            
+            <!-- This div is a container for modal buttons (e.g., for confirmation) -->
             <div id="modal-buttons" class="mt-6 flex justify-end space-x-3"></div>
         </div>
     </div>
 
-    
+    <!-- Link to the main JavaScript module -->
     <script src="main.js" type="module"></script>
 </body>
 </html>
