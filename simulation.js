@@ -44,18 +44,15 @@ function simulationTick() {
     if (shuffledDeck.length === 0) {
         shuffledDeck = [...WASTE_DECK, ...WASTE_DECK, ...WASTE_DECK].sort(() => 0.5 - Math.random());
     }
-    
     const itemTemplate = shuffledDeck.pop();
     const currentItem = {
         id: `item-${String(simulationState.itemCounter++).padStart(3, '0')}`,
         type: itemTemplate.type,
         recyclable: itemTemplate.recyclable
     };
-    
     simulationState.onUpdate(currentItem, null, null);
     
     const SCANNING_TIME = 1000;
-    
     setTimeout(() => {
         if(!simulationState.running) return;
         
@@ -67,22 +64,12 @@ function simulationTick() {
             prediction = otherTypes[Math.floor(Math.random() * otherTypes.length)].type;
             confidence = 0.55 + Math.random() * 0.2;
         }
-        
-        const processedItem = { 
-            ...currentItem, 
-            timestamp: Date.now(), 
-            actual: currentItem.type, 
-            prediction, 
-            confidence 
-        };
-        
+        const processedItem = { ...currentItem, timestamp: Date.now(), actual: currentItem.type, prediction, confidence };
         simulationState.onUpdate(currentItem, prediction, processedItem);
         
         const BASE_DELAY = 1500;
         const RANDOM_FACTOR = 1000;
         const nextItemDelay = (Math.random() * RANDOM_FACTOR + BASE_DELAY) / simulationState.speed;
-        
         simulationTimeout = setTimeout(simulationTick, nextItemDelay);
-        
     }, SCANNING_TIME / simulationState.speed);
 }
