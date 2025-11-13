@@ -1,7 +1,34 @@
+// --- Constants and Configuration ---
+/*
+ * ===================================================================================
+ * CRITICAL SECURITY WARNING
+ * ===================================================================================
+ * This `firebaseConfig` object, especially the `apiKey`, is visible to anyone
+ * who visits your website. This is normal for client-side apps, but it means
+ * your *database* security is extremely important.
+ *
+ * You MUST secure your database by setting up Firebase Security Rules.
+ * Go to your Firebase Console -> Firestore Database -> Rules.
+ *
+ * A good starting rule set for this project (which only allows a signed-in
+ * user to read/write their *own* data) would be:
+ *
+ * rules_version = '2';
+ * service cloud.firestore {
+ * match /databases/{database}/documents {
+ * // Users can only access their own 'waste_items' collection
+ * match /users/{userId}/waste_items/{itemId} {
+ * allow read, create: if request.auth != null && request.auth.uid == userId;
+ * allow update, delete: if false; // Your app doesn't need this
+ * }
+ * }
+ * }
+ * ===================================================================================
+ */
 const firebaseConfig = {
     apiKey: "AIzaSyA7112Zj7hNpUdfNjPBoHv24X6zvJ-Jwsg",
     authDomain: "college-projects-83a0a.firebaseapp.com",
-    projectId: "college-projects-83a0a",
+    projectId: "college-projects-83a00a",
     storageBucket: "college-projects-83a0a.firebasestorage.app",
     messagingSenderId: "110954216590",
     appId: "1:110954216590:web:07dca72de209be4adc9ddf",
@@ -11,8 +38,15 @@ const firebaseConfig = {
 let db;
 let auth;
 
+/**
+ * Initializes the Firebase application, signs in the user anonymously,
+ * and sets up a real-time data listener.
+ * @param {object} state - The main application state object.
+ * @returns {Promise<boolean>} - True if connection is successful, false otherwise.
+ */
 export async function initFirebase(state) {
     try {
+        // These global firebase variables come from the CDN scripts in index.html
         firebase.initializeApp(firebaseConfig);
         auth = firebase.auth();
         db = firebase.firestore();
@@ -34,23 +68,39 @@ export async function initFirebase(state) {
     }
 }
 
+/**
+ * Saves a single waste item data to the user's collection in Firestore.
+ * @param {object} item - The processed waste item to save.
+ */
 export async function saveWasteData(item) {
     if (!db || !auth.currentUser) return;
     try {
         const user = auth.currentUser;
         await db.collection("users").doc(user.uid).collection("waste_items").add(item);
-    } catch (error) {
+    } catch (error)
+    {
         console.error("Error saving data to Firestore:", error);
     }
 }
 
+/**
+ * Sets up a real-time listener on the user's waste_items collection
+ * to receive data updates automatically.
+ *
+ * EFFICIENCY V2 (Doc Changes):
+ * This version uses snapshot.docChanges() to intelligently add, modify, or remove
+ * items from the local state. This is VASTLY more efficient than the previous
+ * method of rebuilding the entire 1000-item array on every single change.
+ *
+ * @param {object} appState - The main application state object.
+ */
 function setupDataListener(appState) {
     if (!db || !auth.currentUser) return;
     const user = auth.currentUser;
 
     db.collection("users").doc(user.uid).collection("waste_items")
-      .orderBy("timestamp", "desc")
-      .limit(1000)
+      .orderBy("timestamp", "desc") // Get newest items first
+      .limit(1000) // Limit to the most recent 1000
       .onSnapshot((snapshot) => {
           console.log("Firebase: Data snapshot received.");
 
@@ -62,30 +112,39 @@ function setupDataListener(appState) {
               const index = appState.allData.findIndex(item => item.id === change.doc.id);
 
               if (change.type === "added") {
+                  // Add new items. Note: This logic assumes we might get 'added'
+                  // events for existing items on init, so we check index.
                   if (index === -1) {
+                      // We insert at the beginning to maintain reverse-chronological order
+                      // for a moment, but we will sort it all at the end.
                        appState.allData.push(docData);
                   }
               }
               if (change.type === "modified") {
                   if (index > -1) {
-                      appState.allData[index] = docData;
+                      appState.allData[index] = docData; // Update in place
                   }
               }
               if (change.type === "removed") {
                   if (index > -1) {
-                      appState.allData.splice(index, 1);
+                      appState.allData.splice(index, 1); // Remove
                   }
               }
           });
 
           if (dataChanged) {
+              // Re-sort the entire array by timestamp (oldest to newest)
+              // This is necessary because docChanges() doesn't guarantee order
+              // for the initial load, and it keeps our state consistent.
               appState.allData.sort((a, b) => a.timestamp - b.timestamp);
               
+              // If we have more than 1000 items (e.g., from multiple 'added' events),
+              // trim the array to keep only the newest 1000.
               if (appState.allData.length > 1000) {
                   appState.allData = appState.allData.slice(appState.allData.length - 1000);
               }
 
-              appState.triggerAnalyticsUpdate();
+              appState.triggerAnalyticsUpdate(); // Refresh UI with new data
           }
       }, (error) => {
           console.error("Error with Firestore listener:", error);
